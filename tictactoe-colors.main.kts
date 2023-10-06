@@ -1,3 +1,4 @@
+// file name MUST end with ".main.kts" for this to work
 @file:DependsOn("net.kyori:adventure-text-serializer-ansi:4.14.0")
 
 import net.kyori.adventure.text.Component
@@ -151,7 +152,8 @@ OUTER@ while (true) {
                 Component.text("Player "),
                 componentForPlayer(currentPlayer),
                 Component.text(" won!"),
-            )
+            ).build()
+            .println()
         break
     }
 
