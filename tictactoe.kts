@@ -1,6 +1,7 @@
 /* ==== Global Variables ==== */
 
 var currentPlayer = 1
+var turn = 0
 val grid = listOf(
     mutableListOf(0, 0, 0),
     mutableListOf(0, 0, 0),
@@ -44,22 +45,22 @@ fun checkWin(player: Int): Boolean {
     // if this check is false, the entire win condition is false because we already checked the rows + cols
 }
 
+fun color(player: Int): String = when (player) {
+    1 -> "X"
+    2 -> "O"
+    else -> " "
+}
+
 /**
  * Return the character for the player at the given position
  */
-fun c(y: Int, x: Int): String {
-    return when (grid[y][x]) {
-        1 -> "O"
-        2 -> "X"
-        else -> " "
-    }
-}
+fun c(y: Int, x: Int): String = color(grid[y][x])
 
 /* ==== Main Game Loop ==== */
 
 // OUTER is a label used by continue on line 81
-OUTER@while (true) {
-    println("Please enter your move 'y,x' , player $currentPlayer")
+OUTER@ while (true) {
+    println("Turn $turn, please enter your move 'y,x' , player ${color(currentPlayer)}")
     val eingabe = readln()
 
     // break-out condition
@@ -104,7 +105,7 @@ OUTER@while (true) {
 
     println(
         """
-Player $currentPlayer played ($y, $x)
+Player ${color(currentPlayer)} played ($y, $x)
 ==========================
         ${c(0, 0)} | ${c(0, 1)} | ${c(0, 2)}
         ---------
@@ -112,14 +113,19 @@ Player $currentPlayer played ($y, $x)
         ---------
         ${c(2, 0)} | ${c(2, 1)} | ${c(2, 2)}
 ==========================
-"""
+""",
     )
 
     if (checkWin(currentPlayer)) {
-        println("Player $currentPlayer won!")
+        println("Player ${color(currentPlayer)} won!")
         break
     }
 
     // swap player 2 <-> 1
     currentPlayer = 3 - currentPlayer
+
+    if (++turn == 9) {
+        println("Tie!")
+        break
+    }
 }
