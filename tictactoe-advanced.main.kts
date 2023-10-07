@@ -5,10 +5,21 @@
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.format.NamedTextColor
+import net.kyori.adventure.text.format.TextDecoration
 import net.kyori.adventure.text.serializer.ansi.ANSIComponentSerializer
+import org.jline.terminal.Terminal
 import org.jline.terminal.TerminalBuilder
+import java.io.PrintWriter
 
-fun Component.println() = println(ANSIComponentSerializer.ansi().serialize(this))
+data class Pos(val y: Int, val x: Int) {
+    override fun toString(): String = "(y: $y, x: $x)"
+}
+
+fun PrintWriter.printlnComponent(component: Component) = println(
+    ANSIComponentSerializer.ansi().serialize(
+        component,
+    ),
+)
 
 /* ==== Global Variables ==== */
 
@@ -65,112 +76,140 @@ fun componentForPlayer(player: Int): Component = when (player) {
     else -> Component.space()
 }
 
-fun componentForRow(y: Int): Component =
+fun componentForRow(y: Int, highlight: Pos? = null): Component =
     Component.text()
         .append(
             Component.text(" ".repeat(8)),
             Component.join(
                 JoinConfiguration.separator(Component.text(" | ")),
-                (0 until 3).map { x -> componentForPlayer(grid[y][x]) },
+                (0 until 3).map { x ->
+                    // only set bold if this is the highlighted position
+                    highlight?.takeIf { (hY, hX) -> hY == y && hX == x }
+                        ?.let { componentForPlayer(currentPlayer).decorate(TextDecoration.UNDERLINED) }
+                        ?: componentForPlayer(grid[y][x]) // or else component without bold decoration
+                },
             ),
             Component.newline(),
         ).build()
 
-fun componentForGrid(): Component =
+fun componentForGrid(highlight: Pos? = null): Component =
     Component.text()
         .append(
+            Component.text("=".repeat(26) + "\n"),
             Component.join(
                 JoinConfiguration.separator(Component.text(" ".repeat(8) + "-".repeat(8) + "\n")),
-                (0 until 3).map { y -> componentForRow(y) },
+                (0 until 3).map { y -> componentForRow(y, highlight) },
             ),
+            Component.text("=".repeat(26) + "\n"),
         )
         .build()
 
-/* ==== Drawing Functions ==== */
-
-fun printGrid(y: Int, x: Int) {
+fun componentForSelectionGrid(pos: Pos): Component =
     Component.text()
         .color(NamedTextColor.GRAY)
         .append(
             Component.text("Player "),
             componentForPlayer(currentPlayer),
-            Component.text(" played ($y, $x)\n"),
-            Component.text("=".repeat(26) + "\n"),
-            componentForGrid(),
-            Component.text("=".repeat(26) + "\n"),
+            Component.text(" selecting $pos - "),
+            Component.text("Turn $turn\n").color(NamedTextColor.GOLD),
+            componentForGrid(pos),
         ).build()
-        .println()
-}
 
 /* ==== Application Logic ==== */
 
-fun readPosition(): Pair<Int, Int>? {
-    val terminal = TerminalBuilder.builder()
-        .system(true)
-        .build()
+var occupiedMessage: Component? = null
 
+/**
+ * Ensures that the given [this@checkPosition] is valid (i.e. not occupied) and returns it if so, otherwise returns null
+ */
+fun Pos.check(): Pos? {
+    if (grid[y][x] == 0) {
+        occupiedMessage = null
+        return this
+    }
+    occupiedMessage = Component.text("Position $this is occupied by ").color(NamedTextColor.RED)
+        .append(componentForPlayer(grid[y][x]))
+    return null
+}
+
+fun readPosition(terminal: Terminal): Pos {
+    val reader = terminal.reader()
+    val writer = terminal.writer()
     var sY = 1
     var sX = 1
 
-    val input = System.`in`
-
-    // move sY and sX with the arrow keys until the user presses enter
     while (true) {
-        print("\r")
-        println("$sY $sX")
-        val key = input.read()
+        // clear screen
+        writer.print("\u001b[H\u001b[2J")
+        writer.flush()
+        writer.printlnComponent(componentForSelectionGrid(Pos(sY, sX)))
+        writer.printlnComponent(
+            Component.text("Use arrow keys to move, enter to select")
+                .color(NamedTextColor.LIGHT_PURPLE),
+        )
+        if (occupiedMessage != null) {
+            writer.printlnComponent(occupiedMessage!!)
+            occupiedMessage = null
+        }
+        writer.flush()
 
+        val key = reader.read()
         when (key) {
             27 -> {
-                // escape sequence
-                val key2 = input.read()
-                val key3 = input.read()
+                val key2 = reader.read()
+                val key3 = reader.read()
                 when (key2) {
-                    91 -> {
-                        // arrow key
-                        when (key3) {
-                            65 -> sY = (sY + 2) % 3
-                            66 -> sY = (sY + 1) % 3
-                            67 -> sX = (sX + 1) % 3
-                            68 -> sX = (sX + 2) % 3
-                        }
+                    91 -> when (key3) {
+                        65 -> sY = (sY + 2) % 3
+                        66 -> sY = (sY + 1) % 3
+                        67 -> sX = (sX + 1) % 3
+                        68 -> sX = (sX + 2) % 3
                     }
-                    10 -> return sY to sX
+                    10, 13 -> Pos(sY, sX).check()?.also { return it }
                 }
             }
-            10 -> return sY to sX
+            10, 13 -> Pos(sY, sX).check()?.also { return it }
         }
     }
 }
 
 /* ==== Main Game Loop ==== */
-while (true) {
-    val (y, x) = readPosition() ?: continue
+fun runGameLoop(terminal: Terminal) {
+    val writer = terminal.writer()
+    while (true) {
+        val (y, x) = readPosition(terminal)
 
-    grid[y][x] = currentPlayer
+        grid[y][x] = currentPlayer
 
-    // print the grid
-    printGrid(y, x)
+        if (checkWin(currentPlayer)) {
+            writer.printlnComponent(
+                Component.text()
+                    .color(NamedTextColor.GREEN)
+                    .append(
+                        Component.text("Player "),
+                        componentForPlayer(currentPlayer),
+                        Component.text(" won!"),
+                    ).build(),
+            )
+            writer.flush()
+            break
+        }
 
-    if (checkWin(currentPlayer)) {
-        Component.text()
-            .color(NamedTextColor.GREEN)
-            .append(
-                Component.text("Player "),
-                componentForPlayer(currentPlayer),
-                Component.text(" won!"),
-            ).build()
-            .println()
-        break
-    }
+        // swap player 2 <-> 1
+        currentPlayer = 3 - currentPlayer
 
-    // swap player 2 <-> 1
-    currentPlayer = 3 - currentPlayer
-
-    if (++turn == 9) {
-        Component.text("Tie!")
-            .color(NamedTextColor.GOLD)
-            .println()
-        break
+        if (++turn == 9) {
+            writer.printlnComponent(Component.text("Tie!").color(NamedTextColor.GOLD))
+            writer.flush()
+            break
+        }
     }
 }
+
+/* ==== Entry Point ==== */
+TerminalBuilder.builder()
+    .system(true)
+    .jansi(true)
+    .build()
+    .also { it.enterRawMode() }
+    .use(::runGameLoop)
