@@ -1,11 +1,12 @@
 // file name MUST end with ".main.kts" for this to work
 @file:DependsOn("net.kyori:adventure-text-serializer-ansi:4.14.0")
+@file:DependsOn("org.jline:jline:3.22.0")
 
 import net.kyori.adventure.text.Component
 import net.kyori.adventure.text.JoinConfiguration
 import net.kyori.adventure.text.format.NamedTextColor
 import net.kyori.adventure.text.serializer.ansi.ANSIComponentSerializer
-import kotlin.system.exitProcess
+import org.jline.terminal.TerminalBuilder
 
 fun Component.println() = println(ANSIComponentSerializer.ansi().serialize(this))
 
@@ -104,49 +105,42 @@ fun printGrid(y: Int, x: Int) {
 /* ==== Application Logic ==== */
 
 fun readPosition(): Pair<Int, Int>? {
-    Component.text()
-        .color(NamedTextColor.AQUA)
-        .append(
-            Component.text("Turn $turn, please enter your move 'y,x', player "),
-            componentForPlayer(currentPlayer),
-        )
+    val terminal = TerminalBuilder.builder()
+        .system(true)
         .build()
-        .println()
 
-    val input = readln()
+    var sY = 1
+    var sX = 1
 
-    // break-out condition
-    if (input == "exit") {
-        Component.text("Exiting...")
-            .color(NamedTextColor.RED)
-            .println()
-        exitProcess(0)
+    val input = System.`in`
+
+    // move sY and sX with the arrow keys until the user presses enter
+    while (true) {
+        print("\r")
+        println("$sY $sX")
+        val key = input.read()
+
+        when (key) {
+            27 -> {
+                // escape sequence
+                val key2 = input.read()
+                val key3 = input.read()
+                when (key2) {
+                    91 -> {
+                        // arrow key
+                        when (key3) {
+                            65 -> sY = (sY + 2) % 3
+                            66 -> sY = (sY + 1) % 3
+                            67 -> sX = (sX + 1) % 3
+                            68 -> sX = (sX + 2) % 3
+                        }
+                    }
+                    10 -> return sY to sX
+                }
+            }
+            10 -> return sY to sX
+        }
     }
-
-    val tokens = input.split(",")
-
-    if (tokens.size != 2) {
-        System.err.println("Incorrectly formatted input, please type two integers 'y,x'")
-        return null
-    }
-
-    // checks if each token is an integer
-    if (tokens.any { !it.matches("\\d".toRegex()) }) {
-        System.err.println("Incorrectly formatted input, please type two integers 'y,x'")
-        return null
-    }
-
-    val (y, x) = tokens.map { it.toInt() }
-
-    if (y > 2 || x > 2 || x < 0 || y < 0) {
-        System.err.println("Error, position ($y, $x) is out of bounds")
-        return null
-    } else if (grid[y][x] != 0) {
-        System.err.println("Error, position ($y, $x) is already taken")
-        return null
-    }
-
-    return y to x
 }
 
 /* ==== Main Game Loop ==== */
