@@ -97,7 +97,7 @@ fun componentForGrid(highlight: Pos? = null): Component =
         .append(
             Component.text("=".repeat(26) + "\n"),
             Component.join(
-                JoinConfiguration.separator(Component.text(" ".repeat(8) + "-".repeat(8) + "\n")),
+                JoinConfiguration.separator(Component.text(" ".repeat(8) + "-".repeat(9) + "\n")),
                 (0 until 3).map { y -> componentForRow(y, highlight) },
             ),
             Component.text("=".repeat(26) + "\n"),
@@ -147,8 +147,8 @@ fun readPosition(terminal: Terminal): Pos {
             Component.text("Use arrow keys to move, enter to select")
                 .color(NamedTextColor.LIGHT_PURPLE),
         )
-        if (occupiedMessage != null) {
-            writer.printlnComponent(occupiedMessage!!)
+        occupiedMessage?.let {
+            writer.printlnComponent(it)
             occupiedMessage = null
         }
         writer.flush()
