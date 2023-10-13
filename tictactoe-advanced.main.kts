@@ -15,11 +15,8 @@ data class Pos(val y: Int, val x: Int) {
     override fun toString(): String = "(y: $y, x: $x)"
 }
 
-fun PrintWriter.printlnComponent(component: Component) = println(
-    ANSIComponentSerializer.ansi().serialize(
-        component,
-    ),
-)
+fun PrintWriter.printlnComponent(component: Component) =
+    println(ANSIComponentSerializer.ansi().serialize(component))
 
 /* ==== Global Variables ==== */
 
@@ -120,7 +117,7 @@ fun componentForSelectionGrid(pos: Pos): Component =
 var occupiedMessage: Component? = null
 
 /**
- * Ensures that the given [this@checkPosition] is valid (i.e. not occupied) and returns it if so, otherwise returns null
+ * Ensures that the given [this] is valid (i.e. not occupied) and returns it if so, otherwise returns null
  */
 fun Pos.check(): Pos? {
     if (grid[y][x] == 0) {
